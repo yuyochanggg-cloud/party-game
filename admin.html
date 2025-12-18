@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>尾牙大亂鬥 - 總控台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-800 text-white min-h-screen p-6">
+
+    <div class="max-w-4xl mx-auto">
+        <div class="flex space-x-4 mb-8 border-b border-gray-600 pb-4">
+            <button onclick="switchTab('rank')" id="tab-rank" class="px-4 py-2 bg-yellow-500 text-black font-bold rounded">📊 即時排行榜</button>
+            <button onclick="switchTab('settings')" id="tab-settings" class="px-4 py-2 bg-gray-700 text-white font-bold rounded">⚙️ 題目設定</button>
+        </div>
+
+        <div id="view-rank" class="block">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-yellow-400">🏆 戰況總覽</h2>
+                <button id="btn-clear-rank" class="text-sm bg-red-900 text-red-200 px-3 py-1 rounded hover:bg-red-800">清空排行榜資料</button>
+            </div>
+            <div class="bg-gray-700 rounded-lg shadow-xl overflow-hidden">
+                <table class="w-full text-left">
+                    <thead class="bg-gray-900 text-gray-400 uppercase">
+                        <tr>
+                            <th class="p-4">名次</th>
+                            <th class="p-4">姓名</th>
+                            <th class="p-4">部門</th>
+                            <th class="p-4 text-right">分數</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-body" class="divide-y divide-gray-600"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="view-settings" class="hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-blue-400">📝 設定 5 道題目</h2>
+                <button id="btn-save-questions" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded shadow-lg text-lg flex items-center">
+                    💾 儲存並發布
+                </button>
+            </div>
+            <div id="questions-form" class="space-y-8">
+                <p class="text-gray-400 text-center py-10">正在讀取現有題目...</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getFirestore, collection, query, orderBy, onSnapshot, getDocs, deleteDoc, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+        // ⚠️ 你的 Config
+        const firebaseConfig = {
+            apiKey: "你的_API_KEY",
+            authDomain: "ls3cquiz.firebaseapp.com",
+            projectId: "ls3cquiz",
+            storageBucket: "ls3cquiz.firebasestorage.app",
+            messagingSenderId: "297051924336",
+            appId: "1:297051924336:web:4a601199a2f37611d311b5",
+            measurementId: "G-FV1YCGQNYB"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // --- 功能 1: 排行榜邏輯 ---
+        const q = query(collection(db, "players"), orderBy("score", "desc"));
+        onSnapshot(q, (snapshot) => {
+            const tbody = document.getElementById('leaderboard-body');
+            tbody.innerHTML = ""; 
+            let rank = 1;
+            snapshot.forEach((docSnap) => {
+                const p = docSnap.data();
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="p-4 text-xl">${rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '#' + rank}</td>
+                    <td class="p-4 font-bold">${p.name}</td>
+                    <td class="p-4 text-gray-300">${p.org}</td>
+                    <td class="p-4 text-right font-mono text-yellow-400 font-bold text-xl">${p.score}</td>
+                `;
+                tbody.appendChild(tr);
+                rank++;
+            });
+        });
+
+        document.getElementById('btn-clear-rank').addEventListener('click', async () => {
+            if (!confirm("確定清空排行榜？無法復原喔！")) return;
+            const snapshot = await getDocs(collection(db, "players"));
+            snapshot.forEach(async (d) => await deleteDoc(doc(db, "players", d.id)));
+        });
+
+        // --- 功能 2: 題目設定邏輯 ---
+        
+        // 初始化載入題目
+        async function loadQuestions() {
+            const formContainer = document.getElementById('questions-form');
+            formContainer.innerHTML = ""; // 清空
+
+            // 從雲端抓目前的設定，如果沒有就用預設空值
+            let currentData = [];
+            try {
+                const docSnap = await getDoc(doc(db, "game_settings", "quiz_data"));
+                if (docSnap.exists()) {
+                    currentData = docSnap.data().questions;
+                }
+            } catch (e) { console.error("讀取失敗", e); }
+
+            // 產生 5 個題目的表單
+            for (let i = 0; i < 5; i++) {
+                const qData = currentData[i] || { q: "", options: ["", "", "", ""], ans: 0 };
+                
+                const div = document.createElement('div');
+                div.className = "bg-gray-700 p-6 rounded border border-gray-600";
+                div.innerHTML = `
+                    <div class="flex justify-between mb-2">
+                        <label class="font-bold text-yellow-400">題目 ${i + 1}</label>
+                    </div>
+                    <input type="text" id="q-${i}" value="${qData.q}" class="w-full p-2 mb-4 bg-gray-900 border border-gray-500 rounded text-white" placeholder="輸入題目內容...">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        ${[0, 1, 2, 3].map(optIdx => `
+                            <div class="flex items-center space-x-2">
+                                <input type="radio" name="ans-${i}" value="${optIdx}" ${qData.ans == optIdx ? 'checked' : ''} class="w-5 h-5 accent-green-500 cursor-pointer">
+                                <input type="text" id="opt-${i}-${optIdx}" value="${qData.options[optIdx] || ''}" class="w-full p-2 bg-gray-800 border border-gray-600 rounded text-sm" placeholder="選項 ${optIdx + 1}">
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+                formContainer.appendChild(div);
+            }
+        }
+
+        // 儲存題目
+        document.getElementById('btn-save-questions').addEventListener('click', async () => {
+            const newQuestions = [];
+            for (let i = 0; i < 5; i++) {
+                const qText = document.getElementById(`q-${i}`).value;
+                const options = [
+                    document.getElementById(`opt-${i}-0`).value,
+                    document.getElementById(`opt-${i}-1`).value,
+                    document.getElementById(`opt-${i}-2`).value,
+                    document.getElementById(`opt-${i}-3`).value
+                ];
+                // 找出被選中的答案 radio
+                const ansRadio = document.querySelector(`input[name="ans-${i}"]:checked`);
+                const ans = ansRadio ? parseInt(ansRadio.value) : 0;
+
+                newQuestions.push({ q: qText, options, ans });
+            }
+
+            // 存入 Firestore
+            try {
+                await setDoc(doc(db, "game_settings", "quiz_data"), {
+                    questions: newQuestions
+                });
+                alert("✅ 題目設定已更新！現在玩家登入將會看到新題目。");
+            } catch (e) {
+                console.error(e);
+                alert("❌ 儲存失敗");
+            }
+        });
+
+        // 頁面切換腳本
+        window.switchTab = (tabName) => {
+            if (tabName === 'rank') {
+                document.getElementById('view-rank').classList.remove('hidden');
+                document.getElementById('view-settings').classList.add('hidden');
+                document.getElementById('tab-rank').className = "px-4 py-2 bg-yellow-500 text-black font-bold rounded";
+                document.getElementById('tab-settings').className = "px-4 py-2 bg-gray-700 text-white font-bold rounded";
+            } else {
+                document.getElementById('view-rank').classList.add('hidden');
+                document.getElementById('view-settings').classList.remove('hidden');
+                document.getElementById('tab-rank').className = "px-4 py-2 bg-gray-700 text-white font-bold rounded";
+                document.getElementById('tab-settings').className = "px-4 py-2 bg-blue-500 text-white font-bold rounded";
+                loadQuestions(); // 切換過來時才讀取
+            }
+        };
+    </script>
+</body>
+</html>
