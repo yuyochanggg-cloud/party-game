@@ -6,93 +6,124 @@
     <title>尾牙大亂鬥 - 挑戰者</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 簡單的動畫效果 */
+        /* 動畫效果定義 */
         @keyframes pop {
             0% { transform: scale(0.8); opacity: 0; }
             100% { transform: scale(1); opacity: 1; }
         }
         .pop-in { animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .floating { animation: float 3s ease-in-out infinite; }
     </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4 select-none">
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4 select-none overflow-hidden">
 
-    <div id="login-section" class="w-full max-w-md space-y-4">
+    <div id="login-section" class="w-full max-w-md space-y-4 pop-in">
         <div class="text-center mb-8">
             <h1 class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 mb-2">🔥 尾牙大亂鬥</h1>
             <p class="text-gray-400 text-sm">速度決定勝負 · 連擊創造傳奇</p>
         </div>
-        <input type="text" id="input-name" placeholder="請輸入真實姓名" class="w-full p-4 rounded-xl bg-gray-800 border-2 border-gray-700 focus:border-yellow-400 focus:bg-gray-700 outline-none transition text-lg font-bold text-center">
-        <input type="text" id="input-org" placeholder="部門 / 單位" class="w-full p-4 rounded-xl bg-gray-800 border-2 border-gray-700 focus:border-yellow-400 focus:bg-gray-700 outline-none transition text-lg font-bold text-center">
-        <button id="btn-join" class="w-full bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-400 hover:to-orange-500 text-black font-black py-4 rounded-xl text-xl shadow-lg transform active:scale-95 transition">開始挑戰</button>
+        <input type="text" id="input-name" placeholder="請輸入真實姓名" class="w-full p-4 rounded-xl bg-gray-800 border-2 border-gray-700 focus:border-yellow-400 focus:bg-gray-700 outline-none transition text-lg font-bold text-center placeholder-gray-500 text-white">
+        <input type="text" id="input-org" placeholder="部門 / 單位" class="w-full p-4 rounded-xl bg-gray-800 border-2 border-gray-700 focus:border-yellow-400 focus:bg-gray-700 outline-none transition text-lg font-bold text-center placeholder-gray-500 text-white">
+        <button id="btn-join" class="w-full bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-400 hover:to-orange-500 text-black font-black py-4 rounded-xl text-xl shadow-lg transform active:scale-95 transition">準備入場</button>
     </div>
 
     <div id="loading-section" class="hidden text-center">
         <div class="w-16 h-16 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <div class="text-xl font-bold text-yellow-400 animate-pulse">正在下載題目卷...</div>
+        <div class="text-xl font-bold text-yellow-400 animate-pulse">正在連線伺服器...</div>
     </div>
 
-    <div id="game-section" class="hidden w-full max-w-md relative">
-        <div class="flex justify-between items-end mb-2 px-2">
+    <div id="wait-start-section" class="hidden w-full max-w-md text-center pop-in">
+        <div class="mb-8 relative flex justify-center">
+            <div class="absolute inset-0 bg-yellow-500 blur-3xl opacity-20 animate-pulse"></div>
+            <div class="text-8xl relative z-10 floating">⏳</div>
+        </div>
+        <h2 class="text-4xl font-black text-white mb-2 tracking-wider">READY?</h2>
+        <p class="text-gray-400 mb-8 animate-pulse font-mono">WAITING FOR HOST TO START...</p>
+        
+        <div class="bg-gray-800/50 backdrop-blur border border-gray-700 p-6 rounded-2xl mx-4 shadow-2xl transform rotate-1 hover:rotate-0 transition duration-500">
+            <p class="text-xs text-gray-500 font-mono mb-2 tracking-widest">PLAYER PROFILE</p>
+            <p class="text-3xl font-bold text-yellow-400" id="display-name">---</p>
+            <p class="text-sm text-gray-400 mt-1" id="display-org">---</p>
+            
+            <div class="mt-6 flex justify-center space-x-2">
+                <span class="w-3 h-3 bg-yellow-500 rounded-full animate-bounce" style="animation-delay: 0s"></span>
+                <span class="w-3 h-3 bg-yellow-500 rounded-full animate-bounce" style="animation-delay: 0.1s"></span>
+                <span class="w-3 h-3 bg-yellow-500 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+            </div>
+        </div>
+        <p class="text-xs text-gray-600 mt-8">請保持螢幕開啟，不要關閉視窗</p>
+    </div>
+
+    <div id="game-section" class="hidden w-full max-w-md relative pop-in">
+        <div class="flex justify-between items-end mb-3 px-2">
             <div class="text-left">
-                <div class="text-xs text-gray-500 font-mono">SCORE</div>
-                <div id="current-score" class="text-2xl font-black text-yellow-400 font-mono">0</div>
+                <div class="text-xs text-gray-500 font-mono font-bold">SCORE</div>
+                <div id="current-score" class="text-3xl font-black text-yellow-400 font-mono tracking-tight" style="text-shadow: 0 0 10px rgba(250, 204, 21, 0.5);">0</div>
             </div>
             <div class="text-right">
-                <div class="text-xs text-gray-500 font-mono">COMBO</div>
-                <div id="combo-display" class="text-2xl font-black text-gray-600 font-mono">x0</div>
+                <div class="text-xs text-gray-500 font-mono font-bold">COMBO</div>
+                <div id="combo-display" class="text-3xl font-black text-gray-600 font-mono italic transition-all duration-200">x0</div>
             </div>
         </div>
 
-        <div class="w-full h-3 bg-gray-800 rounded-full mb-6 overflow-hidden">
-            <div id="timer-bar" class="h-full bg-gradient-to-r from-green-400 to-blue-500 w-full transition-all duration-100 ease-linear"></div>
+        <div class="w-full h-4 bg-gray-800 rounded-full mb-6 overflow-hidden border border-gray-700 shadow-inner relative">
+            <div id="timer-bar" class="h-full bg-gradient-to-r from-green-400 to-blue-500 w-full transition-all duration-100 ease-linear shadow-[0_0_10px_rgba(59,130,246,0.5)]"></div>
         </div>
 
-        <div class="bg-gray-800/50 backdrop-blur rounded-2xl p-6 mb-6 border border-gray-700 shadow-xl min-h-[140px] flex flex-col justify-center relative overflow-hidden">
-            <span id="question-counter" class="absolute top-2 right-4 text-xs bg-gray-900 px-2 py-1 rounded text-gray-400">Q1</span>
-            <h2 id="question-text" class="text-xl md:text-2xl font-bold text-center leading-relaxed">題目載入中...</h2>
+        <div class="bg-gray-800/80 backdrop-blur-md rounded-2xl p-6 mb-6 border border-gray-600 shadow-2xl min-h-[160px] flex flex-col justify-center relative overflow-hidden group">
+            <div class="absolute top-0 right-0 bg-yellow-500 text-black text-xs font-bold px-3 py-1 rounded-bl-xl font-mono" id="question-counter">Q1</div>
+            <h2 id="question-text" class="text-xl md:text-2xl font-bold text-center leading-relaxed text-gray-100">題目載入中...</h2>
         </div>
 
-        <div id="options-container" class="grid grid-cols-1 gap-3"></div>
+        <div id="options-container" class="grid grid-cols-1 gap-3 pb-8"></div>
     </div>
 
-    <div id="feedback-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pop-in">
+    <div id="feedback-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm pop-in">
         <div id="feedback-content" class="text-center transform scale-110">
             </div>
     </div>
 
     <div id="result-section" class="hidden w-full max-w-md text-center pop-in">
-        <div class="mb-6 text-6xl">🏆</div>
-        <h2 class="text-3xl font-bold mb-2 text-white">挑戰完成！</h2>
-        <p class="text-gray-400 mb-8">請保持畫面，等待主持人公布排名</p>
+        <div class="mb-4 text-8xl floating">🏆</div>
+        <h2 class="text-4xl font-black mb-2 text-white tracking-wide">CHALLENGE<br>COMPLETE</h2>
+        <p class="text-gray-400 mb-8 font-mono text-sm">請看大螢幕公布排名</p>
         
-        <div class="bg-gray-800 rounded-2xl p-8 border border-gray-700 shadow-2xl">
-            <div class="text-sm text-gray-500 mb-1 font-mono">FINAL SCORE</div>
-            <div class="text-6xl font-black text-yellow-400 mb-6 font-mono tracking-tighter" id="final-score">0</div>
+        <div class="bg-gray-800/80 backdrop-blur rounded-3xl p-8 border border-gray-700 shadow-2xl transform transition hover:scale-105 duration-300">
+            <div class="text-sm text-gray-500 mb-1 font-mono tracking-widest">FINAL SCORE</div>
+            <div class="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 mb-8 font-mono tracking-tighter" id="final-score">0</div>
             
-            <div class="grid grid-cols-2 gap-4 border-t border-gray-700 pt-6">
+            <div class="grid grid-cols-2 gap-6 border-t border-gray-700 pt-6">
                 <div>
-                    <div class="text-xs text-gray-500">MAX COMBO</div>
-                    <div class="text-xl font-bold text-orange-400" id="final-combo">0</div>
+                    <div class="text-xs text-gray-500 font-bold mb-1">MAX COMBO</div>
+                    <div class="text-2xl font-black text-orange-400" id="final-combo">0</div>
                 </div>
                 <div>
-                    <div class="text-xs text-gray-500">ACCURACY</div>
-                    <div class="text-xl font-bold text-blue-400" id="final-accuracy">0%</div>
+                    <div class="text-xs text-gray-500 font-bold mb-1">ACCURACY</div>
+                    <div class="text-2xl font-black text-blue-400" id="final-accuracy">0%</div>
                 </div>
             </div>
         </div>
         
-        <div class="mt-8 text-sm text-green-500 animate-pulse font-mono flex items-center justify-center gap-2">
-            <span class="w-2 h-2 bg-green-500 rounded-full"></span> 
-            數據已同步至雲端
+        <div class="mt-8 flex items-center justify-center gap-2 text-green-500 font-mono text-xs opacity-80">
+            <span class="relative flex h-3 w-3">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+            </span>
+            DATA UPLOADED TO CLOUD
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
-        // === 你的 Firebase Config ===
+        // === Firebase Config ===
         const firebaseConfig = {
             apiKey: "AIzaSyDkQV-3otX0Kber9gIcyom8aTfpnuJvbDk",
             authDomain: "ls3cquiz.firebaseapp.com",
@@ -112,22 +143,21 @@
         let currentUser = null;
         let currentQIndex = 0;
         
-        // 計分相關變數
         let totalScore = 0;
         let currentCombo = 0;
         let maxCombo = 0;
         let correctCount = 0;
 
-        // 計時相關變數
         let timerInterval = null;
         let questionStartTime = 0;
-        const DEFAULT_TIME_LIMIT = 20; // 預設每題 20 秒
+        const DEFAULT_TIME_LIMIT = 20;
         let questionTimeLimit = DEFAULT_TIME_LIMIT;
 
         // === DOM 元素 ===
         const els = {
             login: document.getElementById('login-section'),
             loading: document.getElementById('loading-section'),
+            wait: document.getElementById('wait-start-section'),
             game: document.getElementById('game-section'),
             result: document.getElementById('result-section'),
             feedback: document.getElementById('feedback-overlay'),
@@ -136,14 +166,14 @@
             combo: document.getElementById('combo-display')
         };
 
-        // === 1. 初始化監聽 ===
+        // === 1. 初始化 & 登入 ===
         document.getElementById('btn-join').addEventListener('click', async () => {
             const name = document.getElementById('input-name').value.trim();
             const org = document.getElementById('input-org').value.trim();
             if (!name) return alert("請輸入真實姓名以利領獎！");
 
             try {
-                // 登入動畫
+                // 轉場：顯示載入中
                 els.login.classList.add('hidden');
                 els.loading.classList.remove('hidden');
 
@@ -151,35 +181,59 @@
                 const userCred = await signInAnonymously(auth);
                 currentUser = { uid: userCred.user.uid, name, org };
 
-                // 抓取題目
+                // 更新等待畫面資訊
+                document.getElementById('display-name').innerText = name;
+                document.getElementById('display-org').innerText = org || '參賽者';
+
+                // 預先下載題目 (重點：先抓下來但不開始)
                 const docSnap = await getDoc(doc(db, "game_settings", "quiz_data"));
-                
                 if (docSnap.exists() && docSnap.data().questions) {
                     questions = docSnap.data().questions;
                 } else {
-                    alert("目前後台還沒有設定題目喔！");
+                    alert("後台尚未設定題目！請通知主持人。");
                     location.reload();
                     return;
                 }
 
-                // 註冊玩家狀態
+                // 在後台註冊玩家狀態：waiting_start
                 await setDoc(doc(db, "players", currentUser.uid), {
-                    name, org, score: 0, status: "playing", timestamp: serverTimestamp()
+                    name, org, score: 0, status: "waiting_start", timestamp: serverTimestamp()
                 });
 
-                // 開始遊戲
+                // 轉場：進入等待畫面
                 els.loading.classList.add('hidden');
-                els.game.classList.remove('hidden');
-                loadQuestion();
+                els.wait.classList.remove('hidden');
+
+                // 開始監聽主持人信號
+                listenForGameStart();
 
             } catch (e) {
                 console.error(e);
-                alert("連線錯誤，請檢查網路");
+                alert("連線發生錯誤，請重新整理");
                 location.reload();
             }
         });
 
-        // === 2. 載入題目邏輯 ===
+        // === 2. 監聽主持人控制信號 ===
+        function listenForGameStart() {
+            onSnapshot(doc(db, "game_state", "control"), (docSnap) => {
+                const status = docSnap.data()?.status;
+
+                // 狀況 A: 主持人按開始 + 我在等待畫面 => 衝啊！
+                if (status === 'started' && !els.wait.classList.contains('hidden')) {
+                    els.wait.classList.add('hidden');
+                    els.game.classList.remove('hidden');
+                    loadQuestion(); // 正式進入第一題
+                }
+                
+                // 狀況 B: 主持人按重置 + 我正在玩 => 強制重整
+                if (status === 'waiting' && !els.game.classList.contains('hidden')) {
+                    location.reload();
+                }
+            });
+        }
+
+        // === 3. 載入題目邏輯 ===
         function loadQuestion() {
             if (currentQIndex >= questions.length) {
                 finishGame();
@@ -188,39 +242,36 @@
 
             const q = questions[currentQIndex];
             
-            // 設定 UI
+            // 設定文字
             document.getElementById('question-text').innerText = q.q || "題目";
             document.getElementById('question-counter').innerText = `Q${currentQIndex + 1} / ${questions.length}`;
             
-            // 建立選項按鈕
+            // 建立選項
             const optsDiv = document.getElementById('options-container');
             optsDiv.innerHTML = "";
             const opts = q.options || ["A", "B", "C", "D"];
             
             opts.forEach((opt, idx) => {
                 const btn = document.createElement('button');
-                // 為了防止重複點擊，加上 pointer-events-auto
-                btn.className = "w-full bg-gray-700 hover:bg-gray-600 active:bg-gray-500 text-white font-bold py-4 px-6 rounded-xl transition text-left text-lg shadow-md border-b-4 border-gray-900 active:border-b-0 active:translate-y-1 relative overflow-hidden group";
-                btn.innerHTML = `<span class="opacity-50 mr-2 text-sm font-mono">${idx + 1}.</span> ${opt}`;
-                
-                // 點擊事件
+                btn.className = "w-full bg-gray-700 hover:bg-gray-600 active:bg-gray-500 text-white font-bold py-4 px-6 rounded-xl transition-all duration-100 text-left text-lg shadow-lg border-b-4 border-gray-800 active:border-b-0 active:translate-y-1 relative overflow-hidden group";
+                btn.innerHTML = `<span class="opacity-50 mr-3 font-mono text-yellow-500">${String.fromCharCode(65+idx)}.</span>${opt}`;
                 btn.onclick = (e) => handleAnswer(idx, e.target);
                 optsDiv.appendChild(btn);
             });
 
-            // 重置計時器
+            // 開始倒數
             questionTimeLimit = q.timeLimit || DEFAULT_TIME_LIMIT;
             startTimer();
         }
 
-        // === 3. 計時器邏輯 ===
+        // === 4. 計時器邏輯 ===
         function startTimer() {
             if (timerInterval) clearInterval(timerInterval);
             questionStartTime = Date.now();
             
-            // 更新進度條動畫
+            // 重置 Bar 顏色
             els.timerBar.style.width = '100%';
-            els.timerBar.className = 'h-full w-full transition-all duration-100 ease-linear bg-gradient-to-r from-green-400 to-blue-500';
+            els.timerBar.className = 'h-full w-full transition-all duration-100 ease-linear bg-gradient-to-r from-green-400 to-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]';
 
             timerInterval = setInterval(() => {
                 const elapsed = (Date.now() - questionStartTime) / 1000;
@@ -229,24 +280,23 @@
 
                 els.timerBar.style.width = `${percent}%`;
 
-                // 變色警告
+                // 剩 30% 變紅 + 發光
                 if (percent < 30) {
-                    els.timerBar.className = 'h-full w-full transition-all duration-100 ease-linear bg-red-500';
+                    els.timerBar.className = 'h-full w-full transition-all duration-100 ease-linear bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.8)]';
                 }
 
-                // 時間到
                 if (remaining <= 0) {
                     clearInterval(timerInterval);
-                    handleAnswer(-1, null); // -1 代表超時/答錯
+                    handleAnswer(-1, null); // 超時
                 }
             }, 100);
         }
 
-        // === 4. 答題與計分核心 (重點!!) ===
+        // === 5. 處理作答 (核心計分) ===
         function handleAnswer(selectedIndex, btnElement) {
-            clearInterval(timerInterval); // 停止計時
+            clearInterval(timerInterval);
             
-            // 鎖定所有按鈕防止連點
+            // 鎖定按鈕
             const allBtns = document.querySelectorAll('#options-container button');
             allBtns.forEach(b => b.disabled = true);
 
@@ -254,96 +304,85 @@
             const correctAns = parseInt(questions[currentQIndex].ans);
             const isCorrect = selectedIndex === correctAns;
             
-            // 計算消耗時間
+            // 計算分數
             const timeTaken = (Date.now() - questionStartTime) / 1000;
             const timeLeft = Math.max(0, questionTimeLimit - timeTaken);
-
-            // --- Kahoot 指數型計分公式 ---
             let roundScore = 0;
             
             if (isCorrect) {
-                // 1. 基礎分
+                // 公式：(基礎分 + 速度獎勵) * 連擊倍率
                 const basePoints = 500;
-                
-                // 2. 速度獎勵 (剩餘時間越多，分數越高，平方曲線讓快手拿更多)
                 const timeRatio = timeLeft / questionTimeLimit;
-                const speedBonus = Math.round(1000 * Math.pow(timeRatio, 1.5));
+                const speedBonus = Math.round(1000 * Math.pow(timeRatio, 1.5)); // 速度越快分越高
                 
-                // 3. 連擊加成 (Combo 越高，倍率越高)
                 currentCombo++;
                 if (currentCombo > maxCombo) maxCombo = currentCombo;
-                const streakMultiplier = 1 + (currentCombo * 0.1); // 每個 Combo 加 10%
+                const streakMultiplier = 1 + (currentCombo * 0.1); // 每個 Combo +10%
                 
-                // 4. 總分計算
                 roundScore = Math.round((basePoints + speedBonus) * streakMultiplier);
-                
                 totalScore += roundScore;
                 correctCount++;
 
-                // 更新 Combo UI (火熱效果)
-                els.combo.innerHTML = `<span class="text-orange-500 animate-pulse">🔥 x${currentCombo}</span>`;
+                // 顯示 Combo 火焰特效
+                els.combo.innerHTML = `<span class="text-orange-500 animate-pulse drop-shadow-[0_0_5px_rgba(249,115,22,0.8)]">🔥 x${currentCombo}</span>`;
                 els.combo.classList.add('scale-125');
             } else {
-                // 答錯：Combo 歸零，沒分
                 currentCombo = 0;
-                roundScore = 0;
                 els.combo.innerText = "x0";
                 els.combo.classList.remove('scale-125');
             }
 
-            // 更新總分 UI
+            // 更新分數顯示
             els.score.innerText = totalScore.toLocaleString();
 
-            // 顯示回饋視窗
+            // 顯示回饋 (Overlay)
             showFeedback(isCorrect, roundScore);
 
-            // 延遲跳轉下一題
+            // 2秒後下一題
             setTimeout(() => {
                 els.feedback.classList.add('hidden');
                 currentQIndex++;
                 loadQuestion();
-            }, 2000); // 2秒後下一題
+            }, 2000);
         }
 
-        // === 5. 顯示回饋視窗 ===
+        // === 6. 顯示回饋彈窗 ===
         function showFeedback(isCorrect, scoreEarned) {
             const content = document.getElementById('feedback-content');
             els.feedback.classList.remove('hidden');
             
             if (isCorrect) {
                 content.innerHTML = `
-                    <div class="text-8xl mb-2">✅</div>
-                    <div class="text-4xl font-black text-green-400 mb-2">CORRECT!</div>
-                    <div class="text-xl text-white font-mono">+${scoreEarned} pts</div>
-                    ${currentCombo > 1 ? `<div class="text-orange-400 font-bold mt-2 text-sm">連擊 x${currentCombo}</div>` : ''}
+                    <div class="text-9xl mb-4 animate-bounce">✅</div>
+                    <div class="text-5xl font-black text-green-400 mb-2 drop-shadow-lg">NICE!</div>
+                    <div class="text-3xl text-white font-mono font-bold">+${scoreEarned}</div>
+                    ${currentCombo > 1 ? `<div class="text-orange-400 font-bold mt-4 text-xl animate-pulse">連擊 x${currentCombo}</div>` : ''}
                 `;
             } else {
                 content.innerHTML = `
-                    <div class="text-8xl mb-2">❌</div>
-                    <div class="text-4xl font-black text-red-500 mb-2">WRONG!</div>
-                    <div class="text-gray-400 text-sm">Combo Lost...</div>
+                    <div class="text-9xl mb-4 animate-shake">❌</div>
+                    <div class="text-5xl font-black text-red-500 mb-2 drop-shadow-lg">OOPS!</div>
+                    <div class="text-gray-400 font-mono mt-2">Combo Reset</div>
                 `;
             }
         }
 
-        // === 6. 遊戲結束 ===
+        // === 7. 遊戲結束 & 上傳 ===
         async function finishGame() {
             els.game.classList.add('hidden');
             els.result.classList.remove('hidden');
             
             document.getElementById('final-score').innerText = totalScore.toLocaleString();
             document.getElementById('final-combo').innerText = maxCombo;
-            
             const accuracy = Math.round((correctCount / questions.length) * 100);
             document.getElementById('final-accuracy').innerText = `${accuracy}%`;
 
-            // 上傳最終成績至 Firestore
             try {
                 await setDoc(doc(db, "players", currentUser.uid), {
                     name: currentUser.name,
                     org: currentUser.org,
                     score: totalScore,
-                    maxCombo: maxCombo, // 多存這個，方便主持人看誰是連擊王
+                    maxCombo: maxCombo,
                     accuracy: accuracy,
                     status: "finished",
                     timestamp: serverTimestamp()
