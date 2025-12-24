@@ -131,39 +131,61 @@
         });
 
 
-        // ==========================================
-        // 2. 排行榜邏輯 (新增更多欄位)
+// ==========================================
+        // 2. 排行榜邏輯 (效能優化版：每 1 秒更新一次)
         // ==========================================
         const q = query(collection(db, "players"), orderBy("score", "desc"));
         
+        let latestDocs = []; // 用來暫存最新的資料
+        let needsUpdate = false; // 標記是否需要更新畫面
+
+        // 1. 監聽器只負責「收資料」，不做「畫畫面」的苦工
         onSnapshot(q, (snapshot) => {
+            latestDocs = snapshot.docs;
+            needsUpdate = true;
+        });
+
+        // 2. 設定一個計時器，每 1000 毫秒 (1秒) 檢查一次要不要畫畫面
+        // 這樣可以避免瀏覽器因為瞬間太多資料而當機
+        setInterval(() => {
+            if (needsUpdate) {
+                renderLeaderboard(latestDocs);
+                needsUpdate = false;
+            }
+        }, 1000);
+
+        // 獨立出來的繪圖函數
+        function renderLeaderboard(docs) {
             const tbody = document.getElementById('leaderboard-body');
-            tbody.innerHTML = ""; 
+            // 這裡用一個字串累積 HTML，再一次寫入，效能會比 appendChild 更快
+            let htmlContent = "";
             let rank = 1;
-            snapshot.forEach((docSnap) => {
+
+            docs.forEach((docSnap) => {
                 const p = docSnap.data();
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-gray-800 transition border-b border-gray-700";
                 
-                // 前三名獎牌圖示
+                // 前三名樣式
                 let rankDisplay = `<span class="font-mono text-gray-500">#${rank}</span>`;
                 let rowClass = "";
                 if (rank === 1) { rankDisplay = "🥇"; rowClass = "text-yellow-400 bg-yellow-900/10"; }
                 if (rank === 2) { rankDisplay = "🥈"; rowClass = "text-gray-300"; }
                 if (rank === 3) { rankDisplay = "🥉"; rowClass = "text-orange-400"; }
-                
-                tr.innerHTML = `
-                    <td class="p-4 text-2xl">${rankDisplay}</td>
-                    <td class="p-4 font-bold text-lg ${rowClass}">${p.name || '---'}</td>
-                    <td class="p-4 text-gray-400">${p.org || '---'}</td>
-                    <td class="p-4 font-mono text-blue-300">${p.accuracy ? p.accuracy + '%' : '-'}</td>
-                    <td class="p-4 font-mono text-orange-400 font-bold">${p.maxCombo ? 'x' + p.maxCombo : '-'}</td>
-                    <td class="p-4 text-right font-mono text-2xl font-black ${rank === 1 ? 'text-yellow-400' : 'text-white'}">${p.score?.toLocaleString() || 0}</td>
+
+                htmlContent += `
+                    <tr class="hover:bg-gray-800 transition border-b border-gray-700">
+                        <td class="p-4 text-2xl">${rankDisplay}</td>
+                        <td class="p-4 font-bold text-lg ${rowClass}">${p.name || '---'}</td>
+                        <td class="p-4 text-gray-400">${p.org || '---'}</td>
+                        <td class="p-4 font-mono text-blue-300">${p.accuracy ? p.accuracy + '%' : '-'}</td>
+                        <td class="p-4 font-mono text-orange-400 font-bold">${p.maxCombo ? 'x' + p.maxCombo : '-'}</td>
+                        <td class="p-4 text-right font-mono text-2xl font-black ${rank === 1 ? 'text-yellow-400' : 'text-white'}">${p.score?.toLocaleString() || 0}</td>
+                    </tr>
                 `;
-                tbody.appendChild(tr);
                 rank++;
             });
-        });
+
+            tbody.innerHTML = htmlContent;
+        }
 
         document.getElementById('btn-clear-rank').addEventListener('click', async () => {
             if (!confirm("🧨 危險操作：確定要刪除所有玩家紀錄嗎？\n排行榜將會清空！")) return;
