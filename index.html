@@ -34,7 +34,8 @@
 
     <div id="loading-section" class="hidden text-center">
         <div class="w-16 h-16 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <div class="text-xl font-bold text-yellow-400 animate-pulse">正在連線伺服器...</div>
+        <div class="text-xl font-bold text-yellow-400 animate-pulse">正在下載題目...</div>
+        <div class="text-sm text-gray-500 mt-2" id="loading-text">連線中</div>
     </div>
 
     <div id="wait-start-section" class="hidden w-full max-w-md text-center pop-in">
@@ -49,6 +50,9 @@
             <p class="text-xs text-gray-500 font-mono mb-2 tracking-widest">PLAYER PROFILE</p>
             <p class="text-3xl font-bold text-yellow-400" id="display-name">---</p>
             <p class="text-sm text-gray-400 mt-1" id="display-org">---</p>
+            <div class="mt-4 pt-4 border-t border-gray-700 text-xs text-blue-300">
+                目前題庫：<span id="display-quiz-id" class="font-bold">...</span>
+            </div>
             
             <div class="mt-6 flex justify-center space-x-2">
                 <span class="w-3 h-3 bg-yellow-500 rounded-full animate-bounce" style="animation-delay: 0s"></span>
@@ -84,8 +88,7 @@
     </div>
 
     <div id="feedback-overlay" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm pop-in">
-        <div id="feedback-content" class="text-center transform scale-110">
-            </div>
+        <div id="feedback-content" class="text-center transform scale-110"></div>
     </div>
 
     <div id="result-section" class="hidden w-full max-w-md text-center pop-in">
@@ -123,7 +126,7 @@
         import { getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
-        // === Firebase Config ===
+        // Firebase Config
         const firebaseConfig = {
             apiKey: "AIzaSyDkQV-3otX0Kber9gIcyom8aTfpnuJvbDk",
             authDomain: "ls3cquiz.firebaseapp.com",
@@ -138,22 +141,19 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // === 遊戲全域變數 ===
+        // 變數
         let questions = [];
         let currentUser = null;
         let currentQIndex = 0;
-        
         let totalScore = 0;
         let currentCombo = 0;
         let maxCombo = 0;
         let correctCount = 0;
-
         let timerInterval = null;
         let questionStartTime = 0;
-        const DEFAULT_TIME_LIMIT = 20;
-        let questionTimeLimit = DEFAULT_TIME_LIMIT;
+        let questionTimeLimit = 20;
 
-        // === DOM 元素 ===
+        // DOM
         const els = {
             login: document.getElementById('login-section'),
             loading: document.getElementById('loading-section'),
@@ -166,45 +166,59 @@
             combo: document.getElementById('combo-display')
         };
 
-        // === 1. 初始化 & 登入 ===
+        // 1. 登入 & 讀取指定題庫
         document.getElementById('btn-join').addEventListener('click', async () => {
             const name = document.getElementById('input-name').value.trim();
             const org = document.getElementById('input-org').value.trim();
             if (!name) return alert("請輸入真實姓名以利領獎！");
 
             try {
-                // 轉場：顯示載入中
                 els.login.classList.add('hidden');
                 els.loading.classList.remove('hidden');
 
-                // Firebase 匿名登入
                 const userCred = await signInAnonymously(auth);
                 currentUser = { uid: userCred.user.uid, name, org };
 
-                // 更新等待畫面資訊
                 document.getElementById('display-name').innerText = name;
                 document.getElementById('display-org').innerText = org || '參賽者';
 
-                // 預先下載題目 (重點：先抓下來但不開始)
-                const docSnap = await getDoc(doc(db, "game_settings", "quiz_data"));
-                if (docSnap.exists() && docSnap.data().questions) {
-                    questions = docSnap.data().questions;
+                // --- 關鍵修改：讀取 Active 題庫 ---
+                const controlSnap = await getDoc(doc(db, "game_state", "control"));
+                let targetQuizId = "default_set"; 
+
+                if (controlSnap.exists() && controlSnap.data().activeQuizId) {
+                    targetQuizId = controlSnap.data().activeQuizId;
+                }
+                
+                document.getElementById('loading-text').innerText = `正在下載: ${targetQuizId}`;
+
+                // 讀取該題庫
+                const quizSnap = await getDoc(doc(db, "quiz_sets", targetQuizId));
+                
+                if (quizSnap.exists() && quizSnap.data().questions) {
+                    questions = quizSnap.data().questions;
                 } else {
-                    alert("後台尚未設定題目！請通知主持人。");
-                    location.reload();
-                    return;
+                    // Fallback: 嘗試讀取舊版 (相容性)
+                    const oldSnap = await getDoc(doc(db, "game_settings", "quiz_data"));
+                    if(oldSnap.exists()) {
+                        questions = oldSnap.data().questions;
+                    } else {
+                        alert(`找不到題庫 (${targetQuizId})，請聯繫工作人員！`);
+                        location.reload();
+                        return;
+                    }
                 }
 
-                // 在後台註冊玩家狀態：waiting_start
+                // 註冊
                 await setDoc(doc(db, "players", currentUser.uid), {
                     name, org, score: 0, status: "waiting_start", timestamp: serverTimestamp()
                 });
 
-                // 轉場：進入等待畫面
+                document.getElementById('display-quiz-id').innerText = targetQuizId;
+
                 els.loading.classList.add('hidden');
                 els.wait.classList.remove('hidden');
 
-                // 開始監聽主持人信號
                 listenForGameStart();
 
             } catch (e) {
@@ -214,26 +228,24 @@
             }
         });
 
-        // === 2. 監聽主持人控制信號 ===
+        // 2. 監聽開始訊號
         function listenForGameStart() {
             onSnapshot(doc(db, "game_state", "control"), (docSnap) => {
                 const status = docSnap.data()?.status;
 
-                // 狀況 A: 主持人按開始 + 我在等待畫面 => 衝啊！
                 if (status === 'started' && !els.wait.classList.contains('hidden')) {
                     els.wait.classList.add('hidden');
                     els.game.classList.remove('hidden');
-                    loadQuestion(); // 正式進入第一題
+                    loadQuestion(); 
                 }
                 
-                // 狀況 B: 主持人按重置 + 我正在玩 => 強制重整
                 if (status === 'waiting' && !els.game.classList.contains('hidden')) {
-                    location.reload();
+                    location.reload(); // 被重置時強制重整
                 }
             });
         }
 
-        // === 3. 載入題目邏輯 ===
+        // 3. 載入單一題目
         function loadQuestion() {
             if (currentQIndex >= questions.length) {
                 finishGame();
@@ -241,12 +253,9 @@
             }
 
             const q = questions[currentQIndex];
-            
-            // 設定文字
             document.getElementById('question-text').innerText = q.q || "題目";
             document.getElementById('question-counter').innerText = `Q${currentQIndex + 1} / ${questions.length}`;
             
-            // 建立選項
             const optsDiv = document.getElementById('options-container');
             optsDiv.innerHTML = "";
             const opts = q.options || ["A", "B", "C", "D"];
@@ -259,17 +268,15 @@
                 optsDiv.appendChild(btn);
             });
 
-            // 開始倒數
-            questionTimeLimit = q.timeLimit || DEFAULT_TIME_LIMIT;
+            questionTimeLimit = q.timeLimit || 20;
             startTimer();
         }
 
-        // === 4. 計時器邏輯 ===
+        // 4. 計時器
         function startTimer() {
             if (timerInterval) clearInterval(timerInterval);
             questionStartTime = Date.now();
             
-            // 重置 Bar 顏色
             els.timerBar.style.width = '100%';
             els.timerBar.className = 'h-full w-full transition-all duration-100 ease-linear bg-gradient-to-r from-green-400 to-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]';
 
@@ -280,50 +287,45 @@
 
                 els.timerBar.style.width = `${percent}%`;
 
-                // 剩 30% 變紅 + 發光
                 if (percent < 30) {
                     els.timerBar.className = 'h-full w-full transition-all duration-100 ease-linear bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.8)]';
                 }
 
                 if (remaining <= 0) {
                     clearInterval(timerInterval);
-                    handleAnswer(-1, null); // 超時
+                    handleAnswer(-1, null);
                 }
             }, 100);
         }
 
-        // === 5. 處理作答 (核心計分) ===
+        // 5. 處理回答
         function handleAnswer(selectedIndex, btnElement) {
             clearInterval(timerInterval);
             
-            // 鎖定按鈕
             const allBtns = document.querySelectorAll('#options-container button');
             allBtns.forEach(b => b.disabled = true);
 
-            // 判斷對錯
             const correctAns = parseInt(questions[currentQIndex].ans);
             const isCorrect = selectedIndex === correctAns;
             
-            // 計算分數
+            // 計分
             const timeTaken = (Date.now() - questionStartTime) / 1000;
             const timeLeft = Math.max(0, questionTimeLimit - timeTaken);
             let roundScore = 0;
             
             if (isCorrect) {
-                // 公式：(基礎分 + 速度獎勵) * 連擊倍率
                 const basePoints = 500;
                 const timeRatio = timeLeft / questionTimeLimit;
-                const speedBonus = Math.round(1000 * Math.pow(timeRatio, 1.5)); // 速度越快分越高
+                const speedBonus = Math.round(1000 * Math.pow(timeRatio, 1.5));
                 
                 currentCombo++;
                 if (currentCombo > maxCombo) maxCombo = currentCombo;
-                const streakMultiplier = 1 + (currentCombo * 0.1); // 每個 Combo +10%
+                const streakMultiplier = 1 + (currentCombo * 0.1);
                 
                 roundScore = Math.round((basePoints + speedBonus) * streakMultiplier);
                 totalScore += roundScore;
                 correctCount++;
 
-                // 顯示 Combo 火焰特效
                 els.combo.innerHTML = `<span class="text-orange-500 animate-pulse drop-shadow-[0_0_5px_rgba(249,115,22,0.8)]">🔥 x${currentCombo}</span>`;
                 els.combo.classList.add('scale-125');
             } else {
@@ -332,13 +334,9 @@
                 els.combo.classList.remove('scale-125');
             }
 
-            // 更新分數顯示
             els.score.innerText = totalScore.toLocaleString();
-
-            // 顯示回饋 (Overlay)
             showFeedback(isCorrect, roundScore);
 
-            // 2秒後下一題
             setTimeout(() => {
                 els.feedback.classList.add('hidden');
                 currentQIndex++;
@@ -346,7 +344,6 @@
             }, 2000);
         }
 
-        // === 6. 顯示回饋彈窗 ===
         function showFeedback(isCorrect, scoreEarned) {
             const content = document.getElementById('feedback-content');
             els.feedback.classList.remove('hidden');
@@ -367,7 +364,6 @@
             }
         }
 
-        // === 7. 遊戲結束 & 上傳 ===
         async function finishGame() {
             els.game.classList.add('hidden');
             els.result.classList.remove('hidden');
@@ -387,9 +383,7 @@
                     status: "finished",
                     timestamp: serverTimestamp()
                 });
-            } catch (e) {
-                console.error("Upload failed", e);
-            }
+            } catch (e) { console.error("Upload failed", e); }
         }
     </script>
 </body>
